@@ -26,7 +26,7 @@ SRC_IMG_LIST_PATH = '/4TB/ytliou/crossdata_seg/list/cityscapes-train-img.txt'
 SRC_LBL_LIST_PATH = '/4TB/ytliou/crossdata_seg/list/cityscapes-train-lbl.txt'
 SRC_INPUT_SIZE = '1280,720' #'1024,512' 
 IGNORE_LABEL = 255
-TGT_DATA_DIRECTORY = './data/Cityscapes/data'
+TGT_DATA_DIRECTORY = '/4TB/ytliou/crossdata_seg/dataset'
 TGT_IMG_LIST_PATH = '/4TB/ytliou/crossdata_seg/list/bdd-train-img.txt'
 TGT_LBL_LIST_PATH = '/4TB/ytliou/crossdata_seg/list/bdd-train-lbl.txt'
 TGT_INPUT_SIZE = '1280,720' #'1024,512'
@@ -40,7 +40,7 @@ RANDOM_SEED = 1234
 RESTORE_FROM = 'http://vllab.ucmerced.edu/ytsai/CVPR18/DeepLab_resnet_pretrained_init-f81d91e8.pth'
 SAVE_NUM_IMAGES = 2
 SAVE_PRED_EVERY = 5000
-SNAPSHOT_DIR = './snapshots/'
+SNAPSHOT_DIR = '/4TB/ytliou/snapshots/'
 WEIGHT_DECAY = 0.0005
 
 LEARNING_RATE_D = 1e-4
@@ -281,7 +281,7 @@ def main(args):
 
             # train with source
 
-            _, batch = trainloader_iter.next()
+            _, batch = trainloader_iter.__next__()
             images, labels, _, _ = batch
             images = Variable(images).cuda(args.gpu)
 
@@ -301,7 +301,7 @@ def main(args):
 
             # train with target seg
 
-            _, batch = targetloader_iter.next()
+            _, batch = targetloader_iter.__next__()
             images, labels, _, _ = batch
             images = Variable(images).cuda(args.gpu)
 
@@ -321,7 +321,7 @@ def main(args):
 
             # train with target adv
 
-            _, batch = targetloader_iter.next()
+            _, batch = targetloader_iter.__next__()
             images, _, _, _ = batch
             images = Variable(images).cuda(args.gpu)
 
@@ -405,7 +405,7 @@ def main(args):
 
         print('exp = {}'.format(args.snapshot_dir))
         print(
-        'iter = {0:8d}/{1:8d}, loss_seg1 = {2:.3f} loss_seg2 = {3:.3f} loss_tgt_seg1 = {2:.3f} loss_tgt_seg2 = {3:.3f} loss_adv1 = {4:.3f}, loss_adv2 = {5:.3f} loss_D1 = {6:.3f} loss_D2 = {7:.3f}'.format(
+        'iter = {0:5d}/{1:8d}, loss_seg1 = {2:.3f} loss_seg2 = {3:.3f} loss_tgt_seg1 = {2:.3f} loss_tgt_seg2 = {3:.3f} loss_adv1 = {4:.3f}, loss_adv2 = {5:.3f} loss_D1 = {6:.3f} loss_D2 = {7:.3f}'.format(
             i_iter, args.num_steps, loss_seg_value1, loss_seg_value2, 
             loss_tgt_seg_value1, loss_tgt_seg_value2,
             loss_adv_target_value1, loss_adv_target_value2, loss_D_value1, loss_D_value2))
