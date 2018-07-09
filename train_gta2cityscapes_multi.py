@@ -3,23 +3,17 @@ import torch
 import torch.nn as nn
 from torch.utils import data, model_zoo
 import numpy as np
-import pickle
 from torch.autograd import Variable
 import torch.optim as optim
-import scipy.misc
 import torch.backends.cudnn as cudnn
 import torch.nn.functional as F
-import sys
 import os
 import os.path as osp
-import matplotlib.pyplot as plt
-import random
 
 from model.deeplab_multi import DeeplabMulti
 from model.discriminator import FCDiscriminator
 from utils.loss import CrossEntropy2d
-from dataset.gta5_dataset import GTA5DataSet
-from dataset.cityscapes_dataset import cityscapesDataSet
+from dataset.list_dataset import ListDataSet
 
 IMG_MEAN = np.array((104.00698793, 116.66876762, 122.67891434), dtype=np.float32)
 
@@ -27,13 +21,15 @@ MODEL = 'DeepLab'
 BATCH_SIZE = 1
 ITER_SIZE = 1
 NUM_WORKERS = 4
-DATA_DIRECTORY = './data/GTA5'
-DATA_LIST_PATH = './dataset/gta5_list/train.txt'
+SRC_DATA_DIRECTORY = '/4TB/ytliou/crossdata_seg/dataset'
+SRC_IMG_LIST_PATH = '/4TB/ytliou/crossdata_seg/list/cityscapes-train-img.txt'
+SRC_LBL_LIST_PATH = '/4TB/ytliou/crossdata_seg/list/cityscapes-train-lbl.txt'
+SRC_INPUT_SIZE = '1280,720' #'1024,512' 
 IGNORE_LABEL = 255
-INPUT_SIZE = '1280,720'
-DATA_DIRECTORY_TARGET = './data/Cityscapes/data'
-DATA_LIST_PATH_TARGET = './dataset/cityscapes_list/train.txt'
-INPUT_SIZE_TARGET = '1024,512'
+TGT_DATA_DIRECTORY = './data/Cityscapes/data'
+TGT_IMG_LIST_PATH = '/4TB/ytliou/crossdata_seg/list/bdd-train-img.txt'
+TGT_LBL_LIST_PATH = '/4TB/ytliou/crossdata_seg/list/bdd-train-lbl.txt'
+TGT_INPUT_SIZE = '1280,720' #'1024,512'
 LEARNING_RATE = 2.5e-4
 MOMENTUM = 0.9
 NUM_CLASSES = 19
@@ -56,7 +52,7 @@ TARGET = 'cityscapes'
 SET = 'train'
 
 
-def get_arguments():
+def get_args():
     """Parse all the arguments provided from the CLI.
 
     Returns:
@@ -73,19 +69,23 @@ def get_arguments():
                         help="Accumulate gradients for ITER_SIZE iterations.")
     parser.add_argument("--num-workers", type=int, default=NUM_WORKERS,
                         help="number of workers for multithread dataloading.")
-    parser.add_argument("--data-dir", type=str, default=DATA_DIRECTORY,
+    parser.add_argument("--src-data-dir", type=str, default=SRC_DATA_DIRECTORY,
                         help="Path to the directory containing the source dataset.")
-    parser.add_argument("--data-list", type=str, default=DATA_LIST_PATH,
+    parser.add_argument("--src-img-list", type=str, default=SRC_IMG_LIST_PATH,
                         help="Path to the file listing the images in the source dataset.")
+    parser.add_argument("--src-lbl-list", type=str, default=SRC_LBL_LIST_PATH,
+                        help="Path to the file listing the images in the source dataset.")
+    parser.add_argument("--src-input-size", type=str, default=SRC_INPUT_SIZE,
+                        help="Comma-separated string with height and width of source images.")
     parser.add_argument("--ignore-label", type=int, default=IGNORE_LABEL,
                         help="The index of the label to ignore during the training.")
-    parser.add_argument("--input-size", type=str, default=INPUT_SIZE,
-                        help="Comma-separated string with height and width of source images.")
-    parser.add_argument("--data-dir-target", type=str, default=DATA_DIRECTORY_TARGET,
+    parser.add_argument("--tgt-data-dir", type=str, default=TGT_DATA_DIRECTORY,
                         help="Path to the directory containing the target dataset.")
-    parser.add_argument("--data-list-target", type=str, default=DATA_LIST_PATH_TARGET,
+    parser.add_argument("--tgt-img-list", type=str, default=TGT_IMG_LIST_PATH,
                         help="Path to the file listing the images in the target dataset.")
-    parser.add_argument("--input-size-target", type=str, default=INPUT_SIZE_TARGET,
+    parser.add_argument("--tgt-lbl-list", type=str, default=TGT_LBL_LIST_PATH,
+                        help="Path to the file listing the images in the target dataset.")
+    parser.add_argument("--tgt-input-size", type=str, default=TGT_INPUT_SIZE,
                         help="Comma-separated string with height and width of target images.")
     parser.add_argument("--is-training", action="store_true",
                         help="Whether to updates the running means and variances during the training.")
@@ -133,10 +133,6 @@ def get_arguments():
                         help="choose adaptation set.")
     return parser.parse_args()
 
-
-args = get_arguments()
-
-
 def loss_calc(pred, label, gpu):
     """
     This function returns cross entropy loss for semantic segmentation
@@ -153,28 +149,28 @@ def lr_poly(base_lr, iter, max_iter, power):
     return base_lr * ((1 - float(iter) / max_iter) ** (power))
 
 
-def adjust_learning_rate(optimizer, i_iter):
+def adjust_learning_rate(args, optimizer, i_iter):
     lr = lr_poly(args.learning_rate, i_iter, args.num_steps, args.power)
     optimizer.param_groups[0]['lr'] = lr
     if len(optimizer.param_groups) > 1:
         optimizer.param_groups[1]['lr'] = lr * 10
 
 
-def adjust_learning_rate_D(optimizer, i_iter):
+def adjust_learning_rate_D(args, optimizer, i_iter):
     lr = lr_poly(args.learning_rate_D, i_iter, args.num_steps, args.power)
     optimizer.param_groups[0]['lr'] = lr
     if len(optimizer.param_groups) > 1:
         optimizer.param_groups[1]['lr'] = lr * 10
 
 
-def main():
+def main(args):
     """Create the model and start the training."""
 
-    h, w = map(int, args.input_size.split(','))
-    input_size = (h, w)
+    h, w = map(int, args.src_input_size.split(','))
+    src_input_size = (h, w)
 
-    h, w = map(int, args.input_size_target.split(','))
-    input_size_target = (h, w)
+    h, w = map(int, args.tgt_input_size.split(','))
+    tgt_input_size = (h, w)
 
     cudnn.enabled = True
     gpu = args.gpu
@@ -216,20 +212,17 @@ def main():
         os.makedirs(args.snapshot_dir)
 
     trainloader = data.DataLoader(
-        GTA5DataSet(args.data_dir, args.data_list, max_iters=args.num_steps * args.iter_size * args.batch_size,
-                    crop_size=input_size,
-                    scale=args.random_scale, mirror=args.random_mirror, mean=IMG_MEAN),
-        batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers, pin_memory=True)
+            ListDataSet(args.src_data_dir, args.src_img_list, args.src_lbl_list, 
+                max_iters=args.num_steps * args.iter_size * args.batch_size, crop_size=src_input_size, mean=IMG_MEAN),
+            batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers, pin_memory=True)
 
     trainloader_iter = enumerate(trainloader)
 
-    targetloader = data.DataLoader(cityscapesDataSet(args.data_dir_target, args.data_list_target,
-                                                     max_iters=args.num_steps * args.iter_size * args.batch_size,
-                                                     crop_size=input_size_target,
-                                                     scale=False, mirror=args.random_mirror, mean=IMG_MEAN,
-                                                     set=args.set),
-                                   batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers,
-                                   pin_memory=True)
+    targetloader = data.DataLoader(
+            ListDataSet(args.tgt_data_dir, args.tgt_img_list, args.tgt_lbl_list,
+                max_iters=args.num_steps * args.iter_size * args.batch_size * 2, crop_size=tgt_input_size, mean=IMG_MEAN),
+            batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers,
+            pin_memory=True)
 
 
     targetloader_iter = enumerate(targetloader)
@@ -248,8 +241,8 @@ def main():
 
     bce_loss = torch.nn.BCEWithLogitsLoss()
 
-    interp = nn.Upsample(size=(input_size[1], input_size[0]), mode='bilinear')
-    interp_target = nn.Upsample(size=(input_size_target[1], input_size_target[0]), mode='bilinear')
+    interp = nn.Upsample(size=(src_input_size[1], src_input_size[0]), mode='bilinear')
+    interp_target = nn.Upsample(size=(tgt_input_size[1], tgt_input_size[0]), mode='bilinear')
 
     # labels for adversarial training
     source_label = 0
@@ -258,20 +251,22 @@ def main():
     for i_iter in range(args.num_steps):
 
         loss_seg_value1 = 0
+        loss_tgt_seg_value1 = 0
         loss_adv_target_value1 = 0
         loss_D_value1 = 0
 
         loss_seg_value2 = 0
+        loss_tgt_seg_value2 = 0
         loss_adv_target_value2 = 0
         loss_D_value2 = 0
 
         optimizer.zero_grad()
-        adjust_learning_rate(optimizer, i_iter)
+        adjust_learning_rate(args, optimizer, i_iter)
 
         optimizer_D1.zero_grad()
         optimizer_D2.zero_grad()
-        adjust_learning_rate_D(optimizer_D1, i_iter)
-        adjust_learning_rate_D(optimizer_D2, i_iter)
+        adjust_learning_rate_D(args, optimizer_D1, i_iter)
+        adjust_learning_rate_D(args, optimizer_D2, i_iter)
 
         for sub_i in range(args.iter_size):
 
@@ -304,10 +299,30 @@ def main():
             loss_seg_value1 += loss_seg1.data.cpu().numpy()[0] / args.iter_size
             loss_seg_value2 += loss_seg2.data.cpu().numpy()[0] / args.iter_size
 
-            # train with target
+            # train with target seg
 
             _, batch = targetloader_iter.next()
-            images, _, _ = batch
+            images, labels, _, _ = batch
+            images = Variable(images).cuda(args.gpu)
+
+            pred1, pred2 = model(images)
+            pred1 = interp(pred1)
+            pred2 = interp(pred2)
+
+            loss_tgt_seg1 = loss_calc(pred1, labels, args.gpu)
+            loss_tgt_seg2 = loss_calc(pred2, labels, args.gpu)
+            loss = loss_tgt_seg2 + args.lambda_seg * loss_tgt_seg1
+
+            # proper normalization
+            loss = loss / args.iter_size
+            loss.backward()
+            loss_tgt_seg_value1 += loss_tgt_seg1.data.cpu().numpy()[0] / args.iter_size
+            loss_tgt_seg_value2 += loss_tgt_seg2.data.cpu().numpy()[0] / args.iter_size
+
+            # train with target adv
+
+            _, batch = targetloader_iter.next()
+            images, _, _, _ = batch
             images = Variable(images).cuda(args.gpu)
 
             pred_target1, pred_target2 = model(images)
@@ -390,22 +405,24 @@ def main():
 
         print('exp = {}'.format(args.snapshot_dir))
         print(
-        'iter = {0:8d}/{1:8d}, loss_seg1 = {2:.3f} loss_seg2 = {3:.3f} loss_adv1 = {4:.3f}, loss_adv2 = {5:.3f} loss_D1 = {6:.3f} loss_D2 = {7:.3f}'.format(
-            i_iter, args.num_steps, loss_seg_value1, loss_seg_value2, loss_adv_target_value1, loss_adv_target_value2, loss_D_value1, loss_D_value2))
+        'iter = {0:8d}/{1:8d}, loss_seg1 = {2:.3f} loss_seg2 = {3:.3f} loss_tgt_seg1 = {2:.3f} loss_tgt_seg2 = {3:.3f} loss_adv1 = {4:.3f}, loss_adv2 = {5:.3f} loss_D1 = {6:.3f} loss_D2 = {7:.3f}'.format(
+            i_iter, args.num_steps, loss_seg_value1, loss_seg_value2, 
+            loss_tgt_seg_value1, loss_tgt_seg_value2,
+            loss_adv_target_value1, loss_adv_target_value2, loss_D_value1, loss_D_value2))
 
         if i_iter >= args.num_steps_stop - 1:
-            print 'save model ...'
-            torch.save(model.state_dict(), osp.join(args.snapshot_dir, 'GTA5_' + str(args.num_steps) + '.pth'))
-            torch.save(model_D1.state_dict(), osp.join(args.snapshot_dir, 'GTA5_' + str(args.num_steps) + '_D1.pth'))
-            torch.save(model_D2.state_dict(), osp.join(args.snapshot_dir, 'GTA5_' + str(args.num_steps) + '_D2.pth'))
+            print('save model ...')
+            torch.save(model.state_dict(), osp.join(args.snapshot_dir, 'CS_BDD_' + str(args.num_steps) + '.pth'))
+            torch.save(model_D1.state_dict(), osp.join(args.snapshot_dir, 'CS_BDD_' + str(args.num_steps) + '_D1.pth'))
+            torch.save(model_D2.state_dict(), osp.join(args.snapshot_dir, 'CS_BDD_' + str(args.num_steps) + '_D2.pth'))
             break
 
         if i_iter % args.save_pred_every == 0 and i_iter != 0:
-            print 'taking snapshot ...'
-            torch.save(model.state_dict(), osp.join(args.snapshot_dir, 'GTA5_' + str(i_iter) + '.pth'))
-            torch.save(model_D1.state_dict(), osp.join(args.snapshot_dir, 'GTA5_' + str(i_iter) + '_D1.pth'))
-            torch.save(model_D2.state_dict(), osp.join(args.snapshot_dir, 'GTA5_' + str(i_iter) + '_D2.pth'))
+            print('taking snapshot ...')
+            torch.save(model.state_dict(), osp.join(args.snapshot_dir, 'CS_BDD_' + str(i_iter) + '.pth'))
+            torch.save(model_D1.state_dict(), osp.join(args.snapshot_dir, 'CS_BDD_' + str(i_iter) + '_D1.pth'))
+            torch.save(model_D2.state_dict(), osp.join(args.snapshot_dir, 'CS_BDD_' + str(i_iter) + '_D2.pth'))
 
 
 if __name__ == '__main__':
-    main()
+    main(get_args())
