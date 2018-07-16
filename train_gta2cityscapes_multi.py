@@ -315,7 +315,7 @@ def main(args):
 
             # proper normalization
             loss = loss / args.iter_size
-            loss.backward()
+            loss.backward(retain_graph=True)
             loss_tgt_seg_value1 += loss_tgt_seg1.data.cpu().numpy()[0] / args.iter_size
             loss_tgt_seg_value2 += loss_tgt_seg2.data.cpu().numpy()[0] / args.iter_size
 
@@ -396,7 +396,7 @@ def main(args):
         print('exp = {}'.format(args.snapshot_dir))
         print(
         'iter = {0:5d}/{1:8d}, loss_seg1 = {2:.3f} loss_seg2 = {3:.3f} loss_tgt_seg1 = {2:.3f} loss_tgt_seg2 = {3:.3f} loss_adv1 = {4:.3f}, loss_adv2 = {5:.3f} loss_D1 = {6:.3f} loss_D2 = {7:.3f}'.format(
-            i_iter, args.num_steps, loss_seg_value1, loss_seg_value2, 
+            i_iter, args.num_steps_stop, loss_seg_value1, loss_seg_value2, 
             loss_tgt_seg_value1, loss_tgt_seg_value2,
             loss_adv_target_value1, loss_adv_target_value2, loss_D_value1, loss_D_value2))
 
