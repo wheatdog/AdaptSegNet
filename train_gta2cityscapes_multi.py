@@ -299,15 +299,15 @@ def main(args):
             loss_seg_value1 += loss_seg1.data.cpu().numpy()[0] / args.iter_size
             loss_seg_value2 += loss_seg2.data.cpu().numpy()[0] / args.iter_size
 
-            # train with target seg
+            # train with target seg + adv
 
             _, batch = targetloader_iter.__next__()
             images, labels, _, _ = batch
             images = Variable(images).cuda(args.gpu)
 
             pred_target1, pred_target2 = model(images)
-            pred_target1 = interp(pred_target1)
-            pred_target2 = interp(pred_target2)
+            pred_target1 = interp_target(pred_target1)
+            pred_target2 = interp_target(pred_target2)
 
             loss_tgt_seg1 = loss_calc(pred_target1, labels, args.gpu)
             loss_tgt_seg2 = loss_calc(pred_target2, labels, args.gpu)
@@ -318,16 +318,6 @@ def main(args):
             loss.backward()
             loss_tgt_seg_value1 += loss_tgt_seg1.data.cpu().numpy()[0] / args.iter_size
             loss_tgt_seg_value2 += loss_tgt_seg2.data.cpu().numpy()[0] / args.iter_size
-
-            # train with target adv
-
-            _, batch = targetloader_iter.__next__()
-            images, _, _, _ = batch
-            images = Variable(images).cuda(args.gpu)
-
-            pred_target1, pred_target2 = model(images)
-            pred_target1 = interp_target(pred_target1)
-            pred_target2 = interp_target(pred_target2)
 
             D_out1 = model_D1(F.softmax(pred_target1))
             D_out2 = model_D2(F.softmax(pred_target2))
