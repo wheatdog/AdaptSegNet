@@ -166,7 +166,7 @@ class ResNetMulti(nn.Module):
     def _make_pred_layer(self, block, inplanes, dilation_series, padding_series, num_classes):
         return block(inplanes, dilation_series, padding_series, num_classes)
 
-    def forward(self, x):
+    def forward(self, x, output_feature=False):
         x = self.conv1(x)
         x = self.bn1(x)
         x = self.relu(x)
@@ -178,9 +178,12 @@ class ResNetMulti(nn.Module):
         x1 = self.layer5(x)
 
         x2 = self.layer4(x)
-        x2 = self.layer6(x2)
+        x3 = self.layer6(x2)
 
-        return x1, x2
+        if output_feature:
+            return x1, x2, x3
+        else:
+            return x1, x3
 
     def get_1x_lr_params_NOscale(self):
         """
