@@ -305,12 +305,12 @@ def main(args):
             images, labels, _, _ = batch
             images = Variable(images).cuda(args.gpu)
 
-            pred1, pred2 = model(images)
-            pred1 = interp(pred1)
-            pred2 = interp(pred2)
+            pred_target1, pred_target2 = model(images)
+            pred_target1 = interp(pred_target1)
+            pred_target2 = interp(pred_target2)
 
-            loss_tgt_seg1 = loss_calc(pred1, labels, args.gpu)
-            loss_tgt_seg2 = loss_calc(pred2, labels, args.gpu)
+            loss_tgt_seg1 = loss_calc(pred_target1, labels, args.gpu)
+            loss_tgt_seg2 = loss_calc(pred_target2, labels, args.gpu)
             loss = loss_tgt_seg2 + args.lambda_seg * loss_tgt_seg1
 
             # proper normalization
