@@ -205,7 +205,7 @@ def main(args):
     cudnn.benchmark = True
 
     # init D
-    model_D2 = FCDiscriminator(num_classes=2048)
+    model_D2 = FCDiscriminator(num_classes=19)
 
     model_D2.train()
     model_D2.cuda(args.gpu)
@@ -274,7 +274,7 @@ def main(args):
             images, labels, _, _ = batch
             images = Variable(images).cuda(args.gpu)
 
-            pred1, feat2, pred2 = model(images, output_feature=True)
+            pred1, pred2 = model(images)
             pred1 = interp(pred1)
             pred2 = interp(pred2)
 
@@ -293,7 +293,7 @@ def main(args):
             images, labels, _, _ = batch
             images = Variable(images).cuda(args.gpu)
 
-            pred_target1, pred_feat2, pred_target2 = model(images, output_feature=True)
+            pred_target1, pred_target2 = model(images)
             pred_target1 = interp_target(pred_target1)
             pred_target2 = interp_target(pred_target2)
 
@@ -306,7 +306,7 @@ def main(args):
             loss.backward(retain_graph=True)
             loss_tgt_seg_value2 += loss_tgt_seg2.data.cpu().numpy()[0] / args.iter_size
 
-            D_out2 = model_D2(pred_feat2)
+            D_out2 = model_D2(F.softmax(pred_target2))
 
             loss_adv_target2 = bce_loss(D_out2,
                                         Variable(torch.FloatTensor(D_out2.data.size()).fill_(source_label)).cuda(
@@ -324,9 +324,9 @@ def main(args):
                 param.requires_grad = True
 
             # train with source
-            feat2 = feat2.detach()
+            pred2 = pred2.detach()
 
-            D_out2 = model_D2(feat2)
+            D_out2 = model_D2(F.softmax(pred2))
 
             loss_D2 = bce_loss(D_out2,
                                Variable(torch.FloatTensor(D_out2.data.size()).fill_(source_label)).cuda(args.gpu))
@@ -338,9 +338,9 @@ def main(args):
             loss_D_value2 += loss_D2.data.cpu().numpy()[0]
 
             # train with target
-            pred_feat2 = pred_feat2.detach()
+            pred_target2 = pred_target2.detach()
 
-            D_out2 = model_D2(pred_feat2)
+            D_out2 = model_D2(F.softmax(pred_target2))
 
             loss_D2 = bce_loss(D_out2,
                                Variable(torch.FloatTensor(D_out2.data.size()).fill_(target_label)).cuda(args.gpu))
