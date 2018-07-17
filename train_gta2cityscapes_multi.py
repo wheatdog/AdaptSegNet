@@ -10,6 +10,8 @@ import torch.nn.functional as F
 import os
 import os.path as osp
 
+from tensorboardX import SummaryWriter
+
 from model.deeplab_multi import DeeplabMulti
 from model.discriminator import FCDiscriminator
 from utils.loss import CrossEntropy2d
@@ -165,6 +167,9 @@ def adjust_learning_rate_D(args, optimizer, i_iter):
 
 def main(args):
     """Create the model and start the training."""
+
+    log_dir = 'runs/{}'.format(datetime.now().strftime('%b%d_%H-%M-%S'))
+    writer = SummaryWriter(log_dir=log_dir)
 
     h, w = map(int, args.src_input_size.split(','))
     src_input_size = (h, w)
@@ -354,6 +359,11 @@ def main(args):
             i_iter, args.num_steps_stop, loss_seg_value2, loss_tgt_seg_value2,
             loss_adv_target_value2, loss_D_value2))
 
+        writer.add_scalar('loss/seg2', loss_seg_value2, i_iter)
+        writer.add_scalar('loss/tgt_seg2', loss_tgt_seg_value2, i_iter)
+        writer.add_scalar('loss/adv2', loss_adv_target_value2, i_iter)
+        writer.add_scalar('loss/d2', loss_D_value2, i_iter)
+
         if i_iter >= args.num_steps_stop - 1:
             print('save model ...')
             torch.save(model.state_dict(), osp.join(args.snapshot_dir, 'CS_BDD_' + str(args.num_steps) + '.pth'))
@@ -364,6 +374,8 @@ def main(args):
             print('taking snapshot ...')
             torch.save(model.state_dict(), osp.join(args.snapshot_dir, 'CS_BDD_' + str(i_iter) + '.pth'))
             torch.save(model_D2.state_dict(), osp.join(args.snapshot_dir, 'CS_BDD_' + str(i_iter) + '_D2.pth'))
+
+        return log_dir
 
 
 if __name__ == '__main__':
