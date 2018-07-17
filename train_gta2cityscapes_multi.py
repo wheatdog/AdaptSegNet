@@ -300,7 +300,7 @@ def main(args):
             loss.backward(retain_graph=True)
             loss_tgt_seg_value2 += loss_tgt_seg2.data.cpu().numpy()[0] / args.iter_size
 
-            D_out2 = model_D2(F.softmax(pred_feat2))
+            D_out2 = model_D2(pred_feat2)
 
             loss_adv_target2 = bce_loss(D_out2,
                                         Variable(torch.FloatTensor(D_out2.data.size()).fill_(source_label)).cuda(
@@ -320,7 +320,7 @@ def main(args):
             # train with source
             feat2 = feat2.detach()
 
-            D_out2 = model_D2(F.softmax(feat2))
+            D_out2 = model_D2(feat2)
 
             loss_D2 = bce_loss(D_out2,
                                Variable(torch.FloatTensor(D_out2.data.size()).fill_(source_label)).cuda(args.gpu))
@@ -334,7 +334,7 @@ def main(args):
             # train with target
             pred_feat2 = pred_feat2.detach()
 
-            D_out2 = model_D2(F.softmax(pred_feat2))
+            D_out2 = model_D2(pred_feat2)
 
             loss_D2 = bce_loss(D_out2,
                                Variable(torch.FloatTensor(D_out2.data.size()).fill_(target_label)).cuda(args.gpu))
