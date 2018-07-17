@@ -11,6 +11,7 @@ import os
 import os.path as osp
 
 from tensorboardX import SummaryWriter
+from datetime import datetime
 
 from model.deeplab_multi import DeeplabMulti
 from model.discriminator import FCDiscriminator
@@ -359,10 +360,12 @@ def main(args):
             i_iter, args.num_steps_stop, loss_seg_value2, loss_tgt_seg_value2,
             loss_adv_target_value2, loss_D_value2))
 
-        writer.add_scalar('loss/seg2', loss_seg_value2, i_iter)
-        writer.add_scalar('loss/tgt_seg2', loss_tgt_seg_value2, i_iter)
-        writer.add_scalar('loss/adv2', loss_adv_target_value2, i_iter)
-        writer.add_scalar('loss/d2', loss_D_value2, i_iter)
+        writer.add_scalars('data/loss', {
+            'seg2': loss_seg_value2, 
+            'tgt_seg2': loss_tgt_seg_value2,
+            'adv2': loss_adv_target_value2,
+            'd2': loss_D_value2,
+            }, i_iter)
 
         if i_iter >= args.num_steps_stop - 1:
             print('save model ...')
@@ -375,7 +378,10 @@ def main(args):
             torch.save(model.state_dict(), osp.join(args.snapshot_dir, 'CS_BDD_' + str(i_iter) + '.pth'))
             torch.save(model_D2.state_dict(), osp.join(args.snapshot_dir, 'CS_BDD_' + str(i_iter) + '_D2.pth'))
 
-        return log_dir
+    result = {}
+    result['log_dir'] = os.path.realpath(log_dir)
+
+    return result
 
 
 if __name__ == '__main__':
