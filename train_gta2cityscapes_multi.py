@@ -388,8 +388,8 @@ def main(args):
 
         if i_iter >= args.num_steps_stop - 1:
             print('save model ...')
-            torch.save(model.state_dict(), osp.join(args.snapshot_dir, 'model_{}.pth'.format(args.num_steps)))
-            torch.save(model_D2.state_dict(), osp.join(args.snapshot_dir, 'model_d_{}.pth'.format(args.num_steps)))
+            torch.save(model.state_dict(), osp.join(args.snapshot_dir, 'model_{}.pth'.format(i_iter)))
+            torch.save(model_D2.state_dict(), osp.join(args.snapshot_dir, 'model_d_{}.pth'.format(i_iter)))
             break
 
         if i_iter % args.save_pred_every == 0 and i_iter != 0:
