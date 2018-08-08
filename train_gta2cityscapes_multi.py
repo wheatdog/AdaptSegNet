@@ -373,7 +373,6 @@ def main(args):
         optimizer.step()
         optimizer_D2.step()
 
-        print('exp = {}'.format(args.snapshot_dir))
         print(
         'iter = {:5d}/{:8d}, loss_seg2 = {:.3f} loss_tgt_seg2 = {:.3f} loss_adv2 = {:.3f} loss_D2 = {:.3f}'.format(
             i_iter, args.num_steps_stop, loss_seg_value2, loss_tgt_seg_value2,
