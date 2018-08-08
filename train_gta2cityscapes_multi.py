@@ -226,13 +226,13 @@ def main(args):
 
     targetloader = data.DataLoader(
             ListDataSet(args.tgt_data_dir, args.tgt_img_list, args.tgt_lbl_list,
-                max_iters=args.num_steps * args.iter_size * args.batch_size * 2, crop_size=tgt_input_size, mean=IMG_MEAN),
+                max_iters=args.num_steps * args.iter_size * args.batch_size, crop_size=tgt_input_size, mean=IMG_MEAN),
             batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers,
             pin_memory=True)
 
     targetloader_nolabel = data.DataLoader(
             ListDataSet(args.tgt_data_dir, args.tgt_img_nolabel_list, None,
-                max_iters=args.num_steps * args.iter_size * args.batch_size * 2, crop_size=tgt_input_size, mean=IMG_MEAN),
+                max_iters=args.num_steps * args.iter_size * args.batch_size, crop_size=tgt_input_size, mean=IMG_MEAN),
             batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers,
             pin_memory=True)
 
