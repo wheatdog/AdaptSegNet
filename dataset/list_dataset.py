@@ -69,7 +69,8 @@ class ListDataSet(data.Dataset):
             label = np.asarray(label, np.float32)
             label = label.copy()
         else:
-            label = None
+            # This is Hack
+            label = []
 
         return image.copy(), label, np.array(size), name
 
