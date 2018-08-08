@@ -295,7 +295,7 @@ def main(args):
             # proper normalization
             loss = loss / args.iter_size
             loss.backward()
-            loss_seg_value2 += loss_seg2.data.cpu().numpy()[0] / args.iter_size
+            loss_seg_value2 += loss_seg2.data.cpu().numpy() / args.iter_size
 
             # train with target seg
 
@@ -314,7 +314,7 @@ def main(args):
             # proper normalization
             loss = loss / args.iter_size
             loss.backward(retain_graph=True)
-            loss_tgt_seg_value2 += loss_tgt_seg2.data.cpu().numpy()[0] / args.iter_size
+            loss_tgt_seg_value2 += loss_tgt_seg2.data.cpu().numpy() / args.iter_size
 
             # train with target_nolabel adv
             _, batch = targetloader_nolabel_iter.__next__()
@@ -325,7 +325,7 @@ def main(args):
             #pred_target1 = interp_target(pred_target1)
             pred_target2 = interp_target(pred_target2)
 
-            D_out2 = model_D2(F.softmax(pred_target2))
+            D_out2 = model_D2(F.softmax(pred_target2, dim=-1))
 
             loss_adv_target2 = bce_loss(D_out2,
                                         Variable(torch.FloatTensor(D_out2.data.size()).fill_(source_label)).cuda(
@@ -334,7 +334,7 @@ def main(args):
             loss = args.lambda_adv_target2 * loss_adv_target2
             loss = loss / args.iter_size
             loss.backward()
-            loss_adv_target_value2 += loss_adv_target2.data.cpu().numpy()[0] / args.iter_size
+            loss_adv_target_value2 += loss_adv_target2.data.cpu().numpy() / args.iter_size
 
             # train D
 
@@ -345,7 +345,7 @@ def main(args):
             # train with source
             pred2 = pred2.detach()
 
-            D_out2 = model_D2(F.softmax(pred2))
+            D_out2 = model_D2(F.softmax(pred2, dim=-1))
 
             loss_D2 = bce_loss(D_out2,
                                Variable(torch.FloatTensor(D_out2.data.size()).fill_(source_label)).cuda(args.gpu))
@@ -354,7 +354,7 @@ def main(args):
 
             loss_D2.backward()
 
-            loss_D_value2 += loss_D2.data.cpu().numpy()[0]
+            loss_D_value2 += loss_D2.data.cpu().numpy()
 
             # train with target
             pred_target2 = pred_target2.detach()
@@ -368,7 +368,7 @@ def main(args):
 
             loss_D2.backward()
 
-            loss_D_value2 += loss_D2.data.cpu().numpy()[0]
+            loss_D_value2 += loss_D2.data.cpu().numpy()
 
         optimizer.step()
         optimizer_D2.step()
