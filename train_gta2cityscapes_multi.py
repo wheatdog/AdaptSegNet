@@ -250,8 +250,8 @@ def main(args):
 
     bce_loss = torch.nn.BCEWithLogitsLoss()
 
-    interp = nn.Upsample(size=(src_input_size[1], src_input_size[0]), mode='bilinear')
-    interp_target = nn.Upsample(size=(tgt_input_size[1], tgt_input_size[0]), mode='bilinear')
+    interp = nn.Upsample(size=(src_input_size[1], src_input_size[0]), mode='bilinear', align_corners=True)
+    interp_target = nn.Upsample(size=(tgt_input_size[1], tgt_input_size[0]), mode='bilinear', align_corners=True)
 
     # labels for adversarial training
     source_label = 0
