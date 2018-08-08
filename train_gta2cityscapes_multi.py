@@ -147,7 +147,7 @@ def loss_calc(pred, label, gpu):
     # out shape batch_size x channels x h x w -> batch_size x channels x h x w
     # label shape h x w x 1 x batch_size  -> batch_size x 1 x h x w
     label = Variable(label.long()).cuda(gpu)
-    criterion = CrossEntropy2d().cuda(gpu)
+    criterion = torch.nn.CrossEntropyLoss(ignore_index=IGNORE_LABEL).cuda(gpu)
 
     return criterion(pred, label)
 
@@ -359,7 +359,7 @@ def main(args):
             # train with target
             pred_target2 = pred_target2.detach()
 
-            D_out2 = model_D2(F.softmax(pred_target2))
+            D_out2 = model_D2(F.softmax(pred_target2, dim=-1))
 
             loss_D2 = bce_loss(D_out2,
                                Variable(torch.FloatTensor(D_out2.data.size()).fill_(target_label)).cuda(args.gpu))
