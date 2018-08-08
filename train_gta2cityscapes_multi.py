@@ -16,6 +16,7 @@ from datetime import datetime
 from model.deeplab_multi import DeeplabMulti
 from model.discriminator import FCDiscriminator
 from utils.loss import CrossEntropy2d
+from utils.common import mkdir_check
 from dataset.list_dataset import ListDataSet
 
 IMG_MEAN = np.array((104.00698793, 116.66876762, 122.67891434), dtype=np.float32)
@@ -32,6 +33,7 @@ IGNORE_LABEL = 255
 TGT_DATA_DIRECTORY = '/4TB/ytliou/crossdata_seg/dataset'
 TGT_IMG_LIST_PATH = '/4TB/ytliou/crossdata_seg/list/bdd-train-img.txt'
 TGT_LBL_LIST_PATH = '/4TB/ytliou/crossdata_seg/list/bdd-train-lbl.txt'
+TGT_IMG_NOLABEL_LIST_PATH = '/4TB/ytliou/crossdata_seg/list/bdd-train-img.txt'
 TGT_INPUT_SIZE = '1280,720' #'1024,512'
 LEARNING_RATE = 2.5e-4
 MOMENTUM = 0.9
@@ -87,6 +89,8 @@ def get_args():
     parser.add_argument("--tgt-img-list", type=str, default=TGT_IMG_LIST_PATH,
                         help="Path to the file listing the images in the target dataset.")
     parser.add_argument("--tgt-lbl-list", type=str, default=TGT_LBL_LIST_PATH,
+                        help="Path to the file listing the images in the target dataset.")
+    parser.add_argument("--tgt-img-nolabel-list", type=str, default=TGT_IMG_NOLABEL_LIST_PATH,
                         help="Path to the file listing the images in the target dataset.")
     parser.add_argument("--tgt-input-size", type=str, default=TGT_INPUT_SIZE,
                         help="Comma-separated string with height and width of target images.")
@@ -169,8 +173,8 @@ def adjust_learning_rate_D(args, optimizer, i_iter):
 def main(args):
     """Create the model and start the training."""
 
-    log_dir = 'runs/{}'.format(datetime.now().strftime('%b%d_%H-%M-%S'))
-    writer = SummaryWriter(log_dir=log_dir)
+    mkdir_check(args.snapshot_dir)
+    writer = SummaryWriter(log_dir=os.path.join(args.snapshot_dir, 'tb-logs'))
 
     h, w = map(int, args.src_input_size.split(','))
     src_input_size = (h, w)
@@ -226,8 +230,14 @@ def main(args):
             batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers,
             pin_memory=True)
 
+    targetloader_nolabel = data.DataLoader(
+            ListDataSet(args.tgt_data_dir, args.tgt_img_nolabel_list, None,
+                max_iters=args.num_steps * args.iter_size * args.batch_size * 2, crop_size=tgt_input_size, mean=IMG_MEAN),
+            batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers,
+            pin_memory=True)
 
     targetloader_iter = enumerate(targetloader)
+    targetloader_nolabel_iter = enumerate(targetloader_nolabel)
 
     # implement model.optim_parameters(args) to handle different models' lr setting
 
@@ -275,36 +285,45 @@ def main(args):
             images = Variable(images).cuda(args.gpu)
 
             pred1, pred2 = model(images)
-            pred1 = interp(pred1)
+            #pred1 = interp(pred1)
             pred2 = interp(pred2)
 
-            loss_seg1 = loss_calc(pred1, labels, args.gpu)
+            #loss_seg1 = loss_calc(pred1, labels, args.gpu)
             loss_seg2 = loss_calc(pred2, labels, args.gpu)
-            loss = loss_seg2 + args.lambda_seg * loss_seg1
+            loss = loss_seg2 #+ args.lambda_seg * loss_seg1
 
             # proper normalization
             loss = loss / args.iter_size
             loss.backward()
             loss_seg_value2 += loss_seg2.data.cpu().numpy()[0] / args.iter_size
 
-            # train with target seg + adv
+            # train with target seg
 
             _, batch = targetloader_iter.__next__()
             images, labels, _, _ = batch
             images = Variable(images).cuda(args.gpu)
 
             pred_target1, pred_target2 = model(images)
-            pred_target1 = interp_target(pred_target1)
+            #pred_target1 = interp_target(pred_target1)
             pred_target2 = interp_target(pred_target2)
 
-            loss_tgt_seg1 = loss_calc(pred_target1, labels, args.gpu)
+            #loss_tgt_seg1 = loss_calc(pred_target1, labels, args.gpu)
             loss_tgt_seg2 = loss_calc(pred_target2, labels, args.gpu)
-            loss = loss_tgt_seg2 + args.lambda_seg * loss_tgt_seg1
+            loss = loss_tgt_seg2 #+ args.lambda_seg * loss_tgt_seg1
 
             # proper normalization
             loss = loss / args.iter_size
             loss.backward(retain_graph=True)
             loss_tgt_seg_value2 += loss_tgt_seg2.data.cpu().numpy()[0] / args.iter_size
+
+            # train with target_nolabel adv
+            _, batch = targetloader_nolabel_iter.__next__()
+            images, _, _, _ = batch
+            images = Variable(images).cuda(args.gpu)
+
+            pred_target1, pred_target2 = model(images)
+            #pred_target1 = interp_target(pred_target1)
+            pred_target2 = interp_target(pred_target2)
 
             D_out2 = model_D2(F.softmax(pred_target2))
 
@@ -360,29 +379,24 @@ def main(args):
             i_iter, args.num_steps_stop, loss_seg_value2, loss_tgt_seg_value2,
             loss_adv_target_value2, loss_D_value2))
 
-        writer.add_scalars('data/loss', {
-            'seg2': loss_seg_value2, 
-            'tgt_seg2': loss_tgt_seg_value2,
-            'adv2': loss_adv_target_value2,
-            'd2': loss_D_value2,
+        writer.add_scalars('loss/seg', {
+            'src2': loss_seg_value2, 
+            'tgt2': loss_tgt_seg_value2,
             }, i_iter)
+
+        writer.add_scalar('loss/adv', loss_adv_target_value2, i_iter)
+        writer.add_scalar('loss/d', loss_D_value2, i_iter)
 
         if i_iter >= args.num_steps_stop - 1:
             print('save model ...')
-            torch.save(model.state_dict(), osp.join(args.snapshot_dir, 'CS_BDD_' + str(args.num_steps) + '.pth'))
-            torch.save(model_D2.state_dict(), osp.join(args.snapshot_dir, 'CS_BDD_' + str(args.num_steps) + '_D2.pth'))
+            torch.save(model.state_dict(), osp.join(args.snapshot_dir, 'model_{}.pth'.format(args.num_steps)))
+            torch.save(model_D2.state_dict(), osp.join(args.snapshot_dir, 'model_d_{}.pth'.format(args.num_steps)))
             break
 
         if i_iter % args.save_pred_every == 0 and i_iter != 0:
             print('taking snapshot ...')
-            torch.save(model.state_dict(), osp.join(args.snapshot_dir, 'CS_BDD_' + str(i_iter) + '.pth'))
-            torch.save(model_D2.state_dict(), osp.join(args.snapshot_dir, 'CS_BDD_' + str(i_iter) + '_D2.pth'))
-
-    result = {}
-    result['log_dir'] = os.path.realpath(log_dir)
-
-    return result
-
+            torch.save(model.state_dict(), osp.join(args.snapshot_dir, 'model_{}.pth'.format(args.num_steps)))
+            torch.save(model_D2.state_dict(), osp.join(args.snapshot_dir, 'model_d_{}.pth'.format(args.num_steps)))
 
 if __name__ == '__main__':
     main(get_args())
