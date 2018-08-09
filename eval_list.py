@@ -108,7 +108,7 @@ def main():
     testloader = data.DataLoader(ListDataSet(args.data_dir, args.img_list, args.lbl_list, crop_size=(1024, 512), mean=IMG_MEAN, split=args.set),
                                     batch_size=1, shuffle=False, pin_memory=True)
 
-    interp = nn.Upsample(size=(1024, 2048), mode='bilinear')
+    interp = nn.Upsample(size=(1024, 2048), mode='bilinear', align_corners=True)
 
     for index, batch in enumerate(testloader):
         if index % 100 == 0:
