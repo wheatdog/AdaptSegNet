@@ -49,7 +49,7 @@ def colorize_mask(mask):
 
     return new_mask
 
-def get_arguments():
+def get_args():
     """Parse all the arguments provided from the CLI.
 
     Returns:
@@ -79,10 +79,8 @@ def get_arguments():
     return parser.parse_args()
 
 
-def main():
+def main(args):
     """Create the model and start the evaluation process."""
-
-    args = get_arguments()
 
     gpu0 = args.gpu
 
@@ -133,4 +131,4 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    main(get_args())
