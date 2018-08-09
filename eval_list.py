@@ -108,26 +108,27 @@ def main(args):
 
     interp = nn.Upsample(size=(1024, 2048), mode='bilinear', align_corners=True)
 
-    for index, batch in enumerate(testloader):
-        if index % 100 == 0:
-            print('%d processd' % index)
-        image, _, _, name = batch
-        if args.model == 'DeeplabMulti':
-            output1, output2 = model(Variable(image, volatile=True).cuda(gpu0))
-            output = interp(output2).cpu().data[0].numpy()
-        elif args.model == 'DeeplabVGG':
-            output = model(Variable(image, volatile=True).cuda(gpu0))
-            output = interp(output).cpu().data[0].numpy()
+    with torch.no_grad():
+        for index, batch in enumerate(testloader):
+            if index % 100 == 0:
+                print('%d processd' % index)
+            image, _, _, name = batch
+            if args.model == 'DeeplabMulti':
+                output1, output2 = model(Variable(image).cuda(gpu0))
+                output = interp(output2).cpu().data[0].numpy()
+            elif args.model == 'DeeplabVGG':
+                output = model(Variable(image).cuda(gpu0))
+                output = interp(output).cpu().data[0].numpy()
 
-        output = output.transpose(1,2,0)
-        output = np.asarray(np.argmax(output, axis=2), dtype=np.uint8)
+            output = output.transpose(1,2,0)
+            output = np.asarray(np.argmax(output, axis=2), dtype=np.uint8)
 
-        output_col = colorize_mask(output)
-        output = Image.fromarray(output)
+            output_col = colorize_mask(output)
+            output = Image.fromarray(output)
 
-        name = name[0].split('/')[-1]
-        output.save('%s/%s' % (args.save, name))
-        output_col.save('%s/%s_color.png' % (args.save, name.split('.')[0]))
+            name = name[0].split('/')[-1]
+            output.save('%s/%s' % (args.save, name))
+            output_col.save('%s/%s_color.png' % (args.save, name.split('.')[0]))
 
 
 if __name__ == '__main__':
